@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>2D Car Dodge Game</title>
+  <style>
+    body { margin: 0; background: #222; }
+    canvas { display: block; margin: 0 auto; background: #444; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <button id="restartBtn" style="display:none; margin: 20px auto; display:block;">รีสตาร์ทเกม</button>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const roadWidth = 300;
+    const roadX = (canvas.width - roadWidth) / 2;
+    const playerWidth = 40, playerHeight = 70;
+    const enemyWidth = 40, enemyHeight = 70;
+
+    let player = {
+      x: canvas.width / 2 - playerWidth / 2,
+      y: canvas.height - playerHeight - 20,
+      width: playerWidth,
+      height: playerHeight,
+      speed: 10 // เพิ่มความเร็วจาก 5 เป็น 10
+    };
+
+    let enemies = [];
+    let enemySpeed = 7; // เพิ่มความเร็วจาก 4 เป็น 7
+    let spawnInterval = 1500;
+    let lastSpawn = 0;
+    let gameOver = false;
+    let score = 0;
+    let highScore = Number(localStorage.getItem('carGameHighScore')) || 0;
+
+    function drawRoad() {
+      ctx.fillStyle = "#888";
+      ctx.fillRect(roadX, 0, roadWidth, canvas.height);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([20, 20]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = "#0f0";
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    function drawEnemies() {
+      ctx.fillStyle = "#f00";
+      enemies.forEach(e => {
+        ctx.fillRect(e.x, e.y, e.width, e.height);
+      });
+    }
+
+    function moveEnemies() {
+      enemies.forEach(e => e.y += enemySpeed);
+      enemies = enemies.filter(e => e.y < canvas.height + e.height);
+    }
+
+    function spawnEnemy() {
+      const laneCount = 3;
+      const laneWidth = roadWidth / laneCount;
+      const lane = Math.floor(Math.random() * laneCount);
+      enemies.push({
+        x: roadX + lane * laneWidth + (laneWidth - enemyWidth) / 2,
+        y: -enemyHeight,
+        width: enemyWidth,
+        height: enemyHeight
+      });
+    }
+
+    function checkCollision(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    function checkGameOver() {
+      for (let e of enemies) {
+        if (checkCollision(player, e)) {
+          gameOver = true;
+          break;
+        }
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "#fff";
+      ctx.font = "24px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+      ctx.fillText("High Score: " + highScore, 10, 60);
+    }
+
+    function resetGame() {
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('carGameHighScore', highScore);
+      }
+      player.x = canvas.width / 2 - player.width / 2;
+      player.y = canvas.height - player.height - 20;
+      enemies = [];
+      enemySpeed = 7;
+      spawnInterval = 1500;
+      lastSpawn = 0;
+      gameOver = false;
+      score = 0;
+      document.getElementById('restartBtn').style.display = 'none';
+      requestAnimationFrame(gameLoop);
+    }
+
+    function gameLoop(timestamp) {
+      if (gameOver) {
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('carGameHighScore', highScore);
+        }
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#fff";
+        ctx.font = "48px Arial";
+        ctx.fillText("Game Over", 80, 300);
+        ctx.font = "32px Arial";
+        ctx.fillText("Score: " + score, 140, 350);
+        ctx.font = "28px Arial";
+        ctx.fillText("High Score: " + highScore, 120, 390);
+        ctx.font = "20px Arial";
+        ctx.fillText("Refresh to play again", 110, 430);
+        document.getElementById('restartBtn').style.display = 'block';
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawRoad();
+      drawPlayer();
+      drawEnemies();
+      drawScore();
+
+      moveEnemies();
+      checkGameOver();
+
+      // Spawn enemies
+      if (!lastSpawn || timestamp - lastSpawn > spawnInterval) {
+        spawnEnemy();
+        lastSpawn = timestamp;
+        score++;
+        // Increase difficulty
+        if (score % 10 === 0 && enemySpeed < 10) {
+          enemySpeed += 0.5;
+          if (spawnInterval > 500) spawnInterval -= 100;
+        }
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (gameOver) return;
+      if (e.key === "ArrowLeft") {
+        player.x -= player.speed * 2;
+        if (player.x < roadX) player.x = roadX;
+      }
+      if (e.key === "ArrowRight") {
+        player.x += player.speed * 2;
+        if (player.x + player.width > roadX + roadWidth)
+          player.x = roadX + roadWidth - player.width;
+      }
+      if (e.key === "ArrowUp") {
+        player.y -= player.speed * 2;
+        if (player.y < 0) player.y = 0;
+      }
+      if (e.key === "ArrowDown") {
+        player.y += player.speed * 2;
+        if (player.y + player.height > canvas.height)
+          player.y = canvas.height - player.height;
+      }
+    });
+
+    document.getElementById('restartBtn').onclick = resetGame;
+
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
